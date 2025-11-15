@@ -370,10 +370,15 @@ export const razorpayPaymentController = async (req, res) => {
     });
 
     // Validate required fields
-    if (!razorpay_order_id || !razorpay_payment_id) {
+    if (
+      !razorpay_order_id ||
+      !razorpay_payment_id ||
+      !cart ||
+      cart.length === 0
+    ) {
       return res.status(400).send({
         success: false,
-        message: "Order ID and Payment ID are required",
+        message: "Order ID, Payment ID, and cart items are required",
       });
     }
 
@@ -399,12 +404,56 @@ export const razorpayPaymentController = async (req, res) => {
       console.log("✓ Payment signature verified successfully");
     }
 
-    // Extract product IDs from cart
-    let productIds = cart;
+    // Check stock availability for all products
+    const productIds = [];
+    const outOfStock = [];
 
-    // If cart contains objects with productId, extract just the IDs
-    if (cart && cart.length > 0 && typeof cart[0] === "object") {
-      productIds = cart.map((item) => item.productId || item._id || item.id);
+    for (const item of cart) {
+      const productId = item.productId || item._id || item.id;
+      const quantity = item.quantity || 1;
+
+      // Find product
+      const product = await productModel.findById(productId);
+
+      if (!product) {
+        return res.status(404).send({
+          success: false,
+          message: `Product not found: ${productId}`,
+        });
+      }
+
+      // Check if enough stock available
+      if (product.quantity < quantity) {
+        outOfStock.push({
+          productId: product._id,
+          name: product.name,
+          availableStock: product.quantity,
+          requestedQuantity: quantity,
+        });
+      }
+
+      productIds.push(productId);
+    }
+
+    // If any product is out of stock, return error
+    if (outOfStock.length > 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Some products are out of stock or have insufficient quantity",
+        outOfStock,
+      });
+    }
+
+    // Update product quantities (subtract ordered quantity from stock)
+    for (const item of cart) {
+      const productId = item.productId || item._id || item.id;
+      const quantity = item.quantity || 1;
+
+      await productModel.findByIdAndUpdate(productId, {
+        $inc: { quantity: -quantity }, // Subtract ordered quantity from stock
+      });
+
+      console.log(`✓ Stock updated for product ${productId}: -${quantity}`);
     }
 
     console.log("Creating order with products:", productIds);
