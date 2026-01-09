@@ -69,11 +69,19 @@ export const getProductController = async (req, res) => {
       .select("-photo")
       .limit(12)
       .sort({ createdAt: -1 });
+
+    // Add photo URL to each product
+    const productsWithPhoto = products.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
     res.status(200).send({
       success: true,
       counTotal: products.length,
       message: "ALlProducts ",
-      products,
+      products: productsWithPhoto,
     });
   } catch (error) {
     console.log(error);
@@ -91,10 +99,15 @@ export const getSingleProductController = async (req, res) => {
       .findOne({ slug: req.params.slug })
       .select("-photo")
       .populate("category");
+
+    // Add photo URL to product
+    const productObj = product.toObject();
+    productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+
     res.status(200).send({
       success: true,
       message: "Single Product Fetched",
-      product,
+      product: productObj,
     });
   } catch (error) {
     console.log(error);
@@ -197,10 +210,18 @@ export const productFiltersController = async (req, res) => {
     let args = {};
     if (checked.length > 0) args.category = checked;
     if (radio.length) args.price = { $gte: radio[0], $lte: radio[1] };
-    const products = await productModel.find(args);
+    const products = await productModel.find(args).select("-photo");
+
+    // Add photo URL to each product
+    const productsWithPhoto = products.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
     res.status(200).send({
       success: true,
-      products,
+      products: productsWithPhoto,
     });
   } catch (error) {
     console.log(error);
@@ -241,9 +262,17 @@ export const productListController = async (req, res) => {
       .skip((page - 1) * perPage)
       .limit(perPage)
       .sort({ createdAt: -1 });
+
+    // Add photo URL to each product
+    const productsWithPhoto = products.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
     res.status(200).send({
       success: true,
-      products,
+      products: productsWithPhoto,
     });
   } catch (error) {
     console.log(error);
@@ -266,7 +295,15 @@ export const searchProductController = async (req, res) => {
         ],
       })
       .select("-photo");
-    res.json(resutls);
+
+    // Add photo URL to each product
+    const resultsWithPhoto = resutls.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
+    res.json(resultsWithPhoto);
   } catch (error) {
     console.log(error);
     res.status(400).send({
@@ -289,9 +326,17 @@ export const realtedProductController = async (req, res) => {
       .select("-photo")
       .limit(3)
       .populate("category");
+
+    // Add photo URL to each product
+    const productsWithPhoto = products.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
     res.status(200).send({
       success: true,
-      products,
+      products: productsWithPhoto,
     });
   } catch (error) {
     console.log(error);
@@ -306,11 +351,22 @@ export const realtedProductController = async (req, res) => {
 export const productCategoryController = async (req, res) => {
   try {
     const category = await categoryModel.findOne({ slug: req.params.slug });
-    const products = await productModel.find({ category }).populate("category");
+    const products = await productModel
+      .find({ category })
+      .populate("category")
+      .select("-photo");
+
+    // Add photo URL to each product
+    const productsWithPhoto = products.map((product) => {
+      const productObj = product.toObject();
+      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      return productObj;
+    });
+
     res.status(200).send({
       success: true,
       category,
-      products,
+      products: productsWithPhoto,
     });
   } catch (error) {
     console.log(error);
