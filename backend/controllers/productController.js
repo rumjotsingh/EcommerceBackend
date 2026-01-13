@@ -7,6 +7,7 @@ import slugify from "slugify";
 import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import crypto from "crypto";
+import cloudinary from "../config/cloudinary.js";
 
 dotenv.config();
 
@@ -41,14 +42,28 @@ export const createProductController = async (req, res) => {
 
     const products = new productModel({ ...req.fields, slug: slugify(name) });
     if (photo) {
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(photo.path, {
+        folder: "products",
+        resource_type: "auto",
+      });
+      products.photoUrl = result.secure_url;
+      products.cloudinary_id = result.public_id;
+
+      // Also save to database (optional - for backward compatibility)
       products.photo.data = fs.readFileSync(photo.path);
       products.photo.contentType = photo.type;
     }
     await products.save();
+
+    // Return product with photoUrl
+    const productResponse = products.toObject();
+    delete productResponse.photo; // Remove binary data from response
+
     res.status(201).send({
       success: true,
       message: "Product Created Successfully",
-      products,
+      products: productResponse,
     });
   } catch (error) {
     console.log(error);
@@ -73,7 +88,8 @@ export const getProductController = async (req, res) => {
     // Add photo URL to each product
     const productsWithPhoto = products.map((product) => {
       const productObj = product.toObject();
-      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      productObj.photo =
+        product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
       return productObj;
     });
 
@@ -102,7 +118,8 @@ export const getSingleProductController = async (req, res) => {
 
     // Add photo URL to product
     const productObj = product.toObject();
-    productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+    productObj.photo =
+      product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
 
     res.status(200).send({
       success: true,
@@ -140,7 +157,16 @@ export const productPhotoController = async (req, res) => {
 //delete controller
 export const deleteProductController = async (req, res) => {
   try {
-    await productModel.findByIdAndDelete(req.params.pid).select("-photo");
+    const product = await productModel
+      .findById(req.params.pid)
+      .select("-photo");
+
+    // Delete image from Cloudinary if exists
+    if (product.cloudinary_id) {
+      await cloudinary.uploader.destroy(product.cloudinary_id);
+    }
+
+    await productModel.findByIdAndDelete(req.params.pid);
     res.status(200).send({
       success: true,
       message: "Product Deleted successfully",
@@ -185,14 +211,33 @@ export const updateProductController = async (req, res) => {
       { new: true }
     );
     if (photo) {
+      // Delete old image from Cloudinary if exists
+      if (products.cloudinary_id) {
+        await cloudinary.uploader.destroy(products.cloudinary_id);
+      }
+
+      // Upload new image to Cloudinary
+      const result = await cloudinary.uploader.upload(photo.path, {
+        folder: "products",
+        resource_type: "auto",
+      });
+      products.photoUrl = result.secure_url;
+      products.cloudinary_id = result.public_id;
+
+      // Also save to database (optional - for backward compatibility)
       products.photo.data = fs.readFileSync(photo.path);
       products.photo.contentType = photo.type;
     }
     await products.save();
+
+    // Return product with photoUrl
+    const productResponse = products.toObject();
+    delete productResponse.photo; // Remove binary data from response
+
     res.status(201).send({
       success: true,
       message: "Product Updated Successfully",
-      products,
+      products: productResponse,
     });
   } catch (error) {
     console.log(error);
@@ -266,7 +311,8 @@ export const productListController = async (req, res) => {
     // Add photo URL to each product
     const productsWithPhoto = products.map((product) => {
       const productObj = product.toObject();
-      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      productObj.photo =
+        product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
       return productObj;
     });
 
@@ -299,7 +345,8 @@ export const searchProductController = async (req, res) => {
     // Add photo URL to each product
     const resultsWithPhoto = resutls.map((product) => {
       const productObj = product.toObject();
-      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      productObj.photo =
+        product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
       return productObj;
     });
 
@@ -330,7 +377,8 @@ export const realtedProductController = async (req, res) => {
     // Add photo URL to each product
     const productsWithPhoto = products.map((product) => {
       const productObj = product.toObject();
-      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      productObj.photo =
+        product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
       return productObj;
     });
 
@@ -359,7 +407,8 @@ export const productCategoryController = async (req, res) => {
     // Add photo URL to each product
     const productsWithPhoto = products.map((product) => {
       const productObj = product.toObject();
-      productObj.photo = `/api/v1/product/product-photo/${product._id}`;
+      productObj.photo =
+        product.photoUrl || `/api/v1/product/product-photo/${product._id}`;
       return productObj;
     });
 
